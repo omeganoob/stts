@@ -11,6 +11,8 @@ from faster_whisper import WhisperModel, BatchedInferencePipeline
 from scipy.io import wavfile
 import noisereduce
 import os
+import csv
+from Levenshtein import distance as levenshtein_distance
 
 def load_model(model_name, device):
     compute_type = 'float16' if device == 'cuda' else 'float32'
@@ -31,7 +33,7 @@ def preprocess_audio(file_path):
     return output_file
 
 def transcribe_audio(file_path, language, model):
-    segments, info = model.transcribe(file_path, beam_size=5)
+    segments, info = model.transcribe(file_path, beam_size=5, language=language)
     
     print(f"Detected language: {info.language} with probability {info.language_probability}")
     transcription = []
@@ -103,6 +105,7 @@ def text_to_speech_elevenlabs(text, voice_id, api_key, model, output_file):
     #         if chunk:
     #             f.write(chunk)
     # print(f"{output_file}: A new audio file was saved successfully!")
+
 def main():
     parser = argparse.ArgumentParser(description="SpeechToSpeech Testing hehe")
     parser.add_argument("audio_file", type=str)
@@ -152,18 +155,44 @@ def main():
             output_file
         )
 
-if __name__ == "__main__":
-    main()
-    """
-    meian/meian_0000.wav
-    >|この前探った時は、途中に瘢痕の隆起があったので、ついそこが行きどまりだとばかり思って、ああ云ったんですが、
-    >|kono mae sagut ta toki wa 、 tochu- ni hankon no ryu-ki ga at ta node 、 tsui soko ga 
-    yukidomari da to bakari omot te 、 a- yut ta n desu ga
-    """
+def evaluate_transcription(transcription, ground_truth):
+    # Calculate the Levenshtein distance between the transcribed text and the ground truth
+    distance = levenshtein_distance(transcription, ground_truth)
     
-    """
-    elevenlabs:
-        api_key: "sk_07b89be07a583ad97ce60ddb1dac604f881d4d81ac847688"
-        model: "eleven_flash_v2_5"
-        voice_id: "JBFqnCBsd6RMkjVDRZzb"
-    """
+    # Calculate the similarity score (1 - normalized distance)
+    max_length = max(len(transcription), len(ground_truth))
+    similarity = 1 - (distance / max_length) if max_length > 0 else 0
+    
+    return similarity
+
+def main_eva():
+    parser = argparse.ArgumentParser(description="Transcribe audio files and evaluate accuracy")
+    parser.add_argument("csv_file", type=str, help="Path to the CSV file containing audio file information")
+    parser.add_argument("audio_dir", type=str, help="Directory containing the audio files")
+    parser.add_argument("device", type=str, choices=["cpu", "cuda"], help="Device to run the model on")
+    args = parser.parse_args()
+    
+    # model = load_model('zh-plus/faster-whisper-large-v2-japanese-5k-steps', args.device)
+    model = load_model('large-v3', args.device)
+    
+    with open(args.csv_file, newline='', encoding='utf-8') as csvfile:
+        reader = csv.reader(csvfile, delimiter='|')
+        for row in reader:
+            file_name, japanese_text, romaji_text, score = row
+            file_path = os.path.join(args.audio_dir, file_name)
+            
+            if not os.path.exists(file_path):
+                print(f"File {file_path} does not exist. Skipping...")
+                continue
+            
+            # preprocessed_file = preprocess_audio(file_path)
+            transcription = transcribe_audio(file_path, 'ja', model)
+            accuracy = evaluate_transcription(transcription, japanese_text)
+            
+            print(f"File: {file_name}")
+            print(f"Transcription: {transcription}")
+            print(f"Ground Truth: {japanese_text}")
+            print(f"Accuracy: {accuracy:.2f}\n")
+
+if __name__ == "__main__":
+    main_eva()
