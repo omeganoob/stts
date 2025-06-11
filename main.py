@@ -4,7 +4,7 @@ import uuid
 import os
 from stts import (
     load_model, preprocess_audio, transcribe_audio, translate_text,
-    text_to_speech_google, text_to_speech_elevenlabs
+    text_to_speech_google, text_to_speech_kokoro
 )
 
 def main():
@@ -12,7 +12,7 @@ def main():
     parser.add_argument("audio_file", type=str)
     parser.add_argument("language", type=str, choices=["ja", "vi", "en"])
     parser.add_argument("dest_language", type=str, choices=["ja", "vi", "en"])
-    parser.add_argument("tts", type=str, choices=["google", "elevenlabs"])
+    parser.add_argument("tts", type=str, choices=["google", "kokoro"])
     parser.add_argument("--use_batch", type=str, choices=["yes", "no"], default="no")
     parser.add_argument("--device", type=str, choices=["cpu", "cuda"], default="cuda")
     args = parser.parse_args()
@@ -43,16 +43,8 @@ def main():
     
     if args.tts == "google":
         text_to_speech_google(translated_text, target_language, output_file)
-    elif args.tts == "elevenlabs":
-        if not config['elevenlabs']['api_key'] or not config['elevenlabs']['voice_id']:
-            raise ValueError("ElevenLabs API key and Voice ID are required for ElevenLabs TTS")
-        text_to_speech_elevenlabs(
-            translated_text, 
-            config['elevenlabs']['voice_id'],
-            config['elevenlabs']['api_key'],
-            config['elevenlabs']['model'],
-            output_file
-        )
+    elif args.tts == "kokoro":
+        text_to_speech_kokoro(translate_text, target_language, output_file)
 
 if __name__ == "__main__":
     main()

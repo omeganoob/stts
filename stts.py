@@ -1,15 +1,14 @@
-import argparse
 from faster_whisper import WhisperModel
 from googletrans import Translator
 from gtts import gTTS
-from elevenlabs.client import ElevenLabs
-from elevenlabs import VoiceSettings
 import uuid
-import requests
 from faster_whisper import WhisperModel, BatchedInferencePipeline
 from scipy.io import wavfile
 import noisereduce
 import os
+from kokoro import KPipeline
+import soundfile as sf
+import numpy as np
 
 def load_model(model_name, device, use_batched=False):
     compute_type = 'float16' if device == 'cuda' else 'float32'
@@ -34,9 +33,9 @@ def preprocess_audio(file_path):
 
 def transcribe_audio(file_path, language, model, use_batched=False, batch_size=16):
     if use_batched:
-        segments, info = model.transcribe(file_path, beam_size=5, language=language, batch_size=batch_size)
+        segments, info = model.transcribe(file_path, beam_size=5, language=language, condition_on_previous_text=False, batch_size=batch_size)
     else:
-        segments, info = model.transcribe(file_path, beam_size=5, language=language)
+        segments, info = model.transcribe(file_path, beam_size=5, language=language, condition_on_previous_text=False)
         
     transcription = []
     for segment in segments:
@@ -58,50 +57,24 @@ def text_to_speech_google(text, lang, output_file):
     tts.save(output_file)
     print(f"Text-to-Speech output saved to {output_file}")
 
-def text_to_speech_elevenlabs(text, voice_id, api_key, model, output_file):
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-    headers = {
-        "xi-api-key": api_key,
-        "Content-Type": "application/json"
-    }
-    data = {
-        "text": text,
-        "voice_settings": {
-            "stability": 0.5,
-            "similarity_boost": 0.5
-        },
-        "model_id": model, 
-        "language_id": "vi"
-    }
+def text_to_speech_kokoro(text, language, output_file):
+    """
+    Convert Japanese text to speech using Kokoro TTS model
     
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 200:
-        with open(output_file, 'wb') as f:
-            f.write(response.content)
-        print(f"Text-to-Speech output saved to {output_file}")
-    else:
-        print(f"Error: {response.status_code}, {response.text}")
-    # elevenlabs = ElevenLabs(
-    #     api_key=api_key,
-    # )
-    
-    # audio = elevenlabs.text_to_speech.convert(
-    #     text=text,
-    #     voice_id=voice_id,
-    #     model_id=model,
-    #     output_format="mp3_44100_128",
-        
-    #     voice_settings=VoiceSettings(
-    #         stability=0.0,
-    #         similarity_boost=1.0,
-    #         style=0.0,
-    #         use_speaker_boost=True,
-    #         speed=1.0,
-    #     ),
-    # )
-    
-    # with open(output_file, 'wb') as f:
-    #     for chunk in audio:
-    #         if chunk:
-    #             f.write(chunk)
-    # print(f"{output_file}: A new audio file was saved successfully!")
+    Args:
+        text (str): Japanese text to convert to speech
+        language (str): Language code ('ja' for Japanese)
+        output_file (str): Path to save the output WAV file
+    """
+    try:
+        if language == 'ja':
+            language = 'j'
+        # Initialize Kokoro model
+        kokoro = KPipeline(lang_code=language)
+        generator = kokoro(text, voice='af_heart')
+        # Generate speech from text
+        for i, (gs, ps, audio) in enumerate(generator):
+            print(i, gs, ps)
+            sf.write(output_file, audio, 24000)
+    except Exception as e:
+        print(f"Error generating speech with Kokoro TTS: {e}")
