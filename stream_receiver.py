@@ -80,7 +80,12 @@ def start_transcribe(model, lang):
 
             """Read to numpy array"""
             audio_data = pcm2numpy(pcm_buffer)
+            #speech-to-text
             transcription = process_audio_chunk(model, audio_data, lang)
+            #translate
+            #TODO
+            #text-to-speech
+            #TODO
     except KeyboardInterrupt:
         print("Stopped listening.")
     finally:

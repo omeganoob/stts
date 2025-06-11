@@ -41,9 +41,9 @@ def main():
         
     output_file = f"translated/{target_language}/{_file_name}_{uuid.uuid4()}.wav"
     
-    if args.tts == "google":
+    if target_language == "vi":
         text_to_speech_google(translated_text, target_language, output_file)
-    elif args.tts == "kokoro":
+    if target_language == "ja":
         text_to_speech_kokoro(translate_text, target_language, output_file)
 
 if __name__ == "__main__":
